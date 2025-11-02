@@ -1,0 +1,47 @@
+name: Terraform Apply (Protected)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  terraform-apply:
+    name: Terraform Apply to Production
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://aws.amazon.com
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.7
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-south-1
+
+      - name: Terraform Init (Remote Backend)
+        run: |
+          terraform init \
+            -backend-config="bucket=my-terraform-state-bucket" \
+            -backend-config="key=env/prod/terraform.tfstate" \
+            -backend-config="region=ap-south-1" \
+            -backend-config="dynamodb_table=terraform-lock"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve
